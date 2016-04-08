@@ -30,21 +30,37 @@ def phaseSpectrum(fourierData):
 # High Pass Filter (HPF) - remove the low frequencies by masking with a rectangular window of size 60x60
 def masking(data):
     rows, cols = data.shape
-    data[rows/2-30:rows/2+30, cols/2-30:cols/2+30] = 0
+    mf = min(rows,cols)/6   # Masking Factor
+    data[rows/2-mf:rows/2+mf, cols/2-mf:cols/2+mf] = 0
     return data
 
 
-# Read image
-f = np.array(io.imread('characters/T7.GIF'), dtype=float)
-
-# Manipulations
-fourier = fourierTransform(f)
-magSpec = magnitudeSpectrum(fourier)
-inverseFourier = inverseFourierTransform(fourier)
-
-showGraph(magSpec)
-showGraph(inverseFourier)
-plt.show()
 
 
+
+
+
+def main():
+    # Read image
+    f = np.array(io.imread('characters/T4.GIF'), dtype=float)
+
+    # Manipulations
+    fourier = fourierTransform(f)
+
+    magSpec = magnitudeSpectrum(fourier)
+    afterMasking = masking(fourier)
+
+    inverseFourier = inverseFourierTransform(afterMasking)
+
+    print(magSpec)
+
+    showGraph(magSpec)
+    showGraph(inverseFourier)
+    plt.show()
+
+
+
+
+if __name__ == "__main__":
+    main()
 
