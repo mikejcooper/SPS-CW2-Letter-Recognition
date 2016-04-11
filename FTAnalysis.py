@@ -1,8 +1,11 @@
 from __future__ import print_function
 
-import numpy as np
+import Classifier
 from skimage import io
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy import signal as sg
+
 
 # For viewing purposes:
 def showGraph(data):
@@ -27,34 +30,54 @@ def magnitudeSpectrum(fourierData):
 def phaseSpectrum(fourierData):
     return np.angle(fourierData)                   # Phase spectrum
 
-# High Pass Filter (HPF) - remove the low frequencies by masking with a rectangular window of size 60x60
+# High Pass Filter (HPF) - remove the low frequencies by masking with a rectangular window of size min(rows,cols)/6
 def masking(data):
     rows, cols = data.shape
     mf = min(rows,cols)/6   # Masking Factor
-    data[rows/2-mf:rows/2+mf, cols/2-mf:cols/2+mf] = 0
+    data[rows/2-mf:rows/2+mf, cols/2-mf:cols/2+mf] = 1
     return data
 
+def convolutionFilter(image,vORh):
+    if vORh == 'v':
+        # return sg.convolve(image, [[1,-1]], "valid")         # Vertical Data
+        return sg.fftconvolve(image, [[1,-1]], "valid")         # Vertical Data
+    else:
+        # return sg.convolve(image, [[1],[-1]], "valid")       # Horizontal Data
+        return sg.fftconvolve(image, [[1],[-1]], "valid")       # Horizontal Data
 
+def commonSize(a1, a2):
+    # Chop-off the first rows and cols from the two numpy arrays a1
+    # and a2 so that they end up having the same size.
+    (r1, c1) = a1.shape
+    (r2, c2) = a2.shape
+    return (a1[r1-r2 if r1>r2 else 0:,
+               c1-c2 if c1>c2 else 0:],
+            a2[r2-r1 if r2>r1 else 0::,
+               c2-c1 if c2>c1 else 0:])
 
-
+def convolutionCombination(image):
+    imv, imh = commonSize(convolutionFilter(image,'h'),convolutionFilter(image,'v'))
+    return np.sqrt(np.power(imv, 2)+np.power(imh, 2))
 
 
 
 def main():
     # Read image
-    f = np.array(io.imread('characters/T4.GIF'), dtype=float)
+    image = np.array(io.imread('characters/V5.GIF'), dtype=float)
+    image = convolutionCombination(image)
 
     # Manipulations
-    fourier = fourierTransform(f)
+    fourier = fourierTransform(image)
 
     magSpec = magnitudeSpectrum(fourier)
-    afterMasking = masking(fourier)
+    phaseSpec = phaseSpectrum(fourier)
 
-    inverseFourier = inverseFourierTransform(afterMasking)
 
-    print(magSpec)
+    inverseFourier = inverseFourierTransform(fourier)
+
 
     showGraph(magSpec)
+    showGraph(phaseSpec)
     showGraph(inverseFourier)
     plt.show()
 
