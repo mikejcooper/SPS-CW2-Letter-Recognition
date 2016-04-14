@@ -1,0 +1,160 @@
+import scipy
+from skimage import io
+from skimage.feature import hog
+
+import numpy as np
+import matplotlib.pyplot as plt
+import struct
+from sklearn.cluster import KMeans
+import FTAnalysis
+from scipy.spatial import Voronoi, voronoi_plot_2d
+from scipy.spatial.distance import cdist
+
+
+
+def euclidean_distance(img1, img2):
+    # Since we're using NumPy arrays, all our operations are automatically vectorized.
+    # A breakdown of this expression:
+    #     img1 - img2 is the pixel-wise difference between the images
+    #     (img1 - img2) ** 2 is the same thing, with each value squared
+    #     sum((img1 - img2) ** 2) is the sum of the elements in the matrix.
+    return np.sum((img1 - img2)**2)
+
+def allPowerValues(images):
+    total = []
+    for i in images:
+        total.append(powerValue(i))
+    return np.reshape(total,(len(total),1))
+
+def powerValue(image):
+    return np.sum(np.square(image))
+
+# todo get angle sector working
+def sectorValue(image,angle):
+    y,x = image.shape
+    for j in range(1,y):
+        for i in range(1,x):
+            if i > x/2 and j < y/2:
+                if 0 < np.rad2deg(np.arctan(((i-x/2) + 200)/j)) < 80:
+                    image[j][i] = 0
+    return image
+
+def boxRegion(image):
+    x,y = image.shape
+    boxSizeX = 30
+    boxSizeY = 30
+    print(x)
+    print(y)
+    for i in range(1,x):
+        for j in range(1,y):
+            if ((x/2)-boxSizeX < i < (x/2)+boxSizeX) or ((y/2)-boxSizeY < j < (y/2)+boxSizeY):
+                    image[i][j] = 0
+    return image
+
+
+def edgeDetection(image):
+    pixelTuple = []
+    x,y = image.shape
+    for i in range(1,x):
+        for j in range(1,y):
+            if image[i][j] == 255:
+                pixelTuple.append((i,j))
+    return pixelTuple
+
+
+# Histogram of Oriented Gaussians
+def hogImage(image):
+    fd, hog_image = hog(image, orientations=8, pixels_per_cell=(16, 16), cells_per_block=(1, 1), visualise=True)
+    return hog_image
+
+def allHogValues(images):
+    data = []
+    for i in images:
+        data.append(powerValue(hogImage(FTAnalysis.convolutionCombination(i))))
+    return np.reshape(data,(len(data),1))
+
+def allPhaseValues(images):
+    data = []
+    for i in images:
+        data.append(powerValue(FTAnalysis.phaseSpectrum(FTAnalysis.fourierTransform(FTAnalysis.convolutionCombination(i)))))
+    return np.reshape(data,(len(data),1))
+
+
+
+# ------CW1
+def plotmatrix(Matrix):
+  r, c = Matrix.shape
+  fig = plt.figure(figsize=(5,5))
+  plotID = 1
+  for i in range(c):
+    for j in range(c):
+      ax = fig.add_subplot( c, c, plotID )
+      ax.scatter( Matrix[:,i], Matrix[:,j] )
+      plotID += 1
+    fig.set_size_inches(18.5, 10.5)
+
+def kmeans(Data, NClusters):
+  km = KMeans(NClusters)
+  fitted = km.fit(Data)
+  return (fitted.cluster_centers_, fitted.labels_, fitted.inertia_)
+
+colours = ["red", "blue", "green"]
+
+
+# Plot a matrix given some labels
+def plotClusters(Matrix, ClusterNum, Labels):
+    rData = []
+    for i in range(0,ClusterNum):
+        clusterIndexes = np.array(np.where(Labels == i))
+        thisCluster = Matrix[clusterIndexes]
+        plt.scatter(thisCluster[0][:,0],thisCluster[0][:,1], color=colours[i], marker='o', s= 100)
+        rData.append(thisCluster[0])
+    plt.figure(figsize=(5,5))
+    return rData
+
+
+def main():
+    imagesT = FTAnalysis.getAllImages('T')
+    imagesS = FTAnalysis.getAllImages('S')
+    images = np.concatenate((imagesT,imagesS))
+
+    magSpecs = FTAnalysis.getAllMagSpec(images)
+    # Features
+    powerVals = allPowerValues(magSpecs)
+    hogVals = allHogValues(images)
+    phasVals = allPhaseValues(images) # Cannot use last feature because feature matrix will be nx3 and cw1 it's nx2. This causes Voronoi error
+
+    featureMatrix = np.column_stack((powerVals,hogVals))
+
+    # plotmatrix(featureMatrix)
+
+    # Cluster number
+    clusterNum = 3
+
+    # # Get k Mean Data
+    kMeanData = kmeans(featureMatrix, clusterNum)
+    kCentroids = kMeanData[0]
+    kLabels = kMeanData[1]
+    kInertia = kMeanData[2]
+
+    # Store the classed data globally
+    # classedData = plotClusters(featureMatrix, clusterNum, kLabels)
+
+    distancesFromTests = cdist(featureMatrix, kCentroids, metric='euclidean', p=2)
+    testLabels = np.argmin(distancesFromTests, axis=1)
+    plotClusters(featureMatrix, clusterNum, testLabels)     # Not plotting the same number of points for each feature, possible error
+
+    # Plot Centroids
+    plt.scatter(kCentroids[:,0],kCentroids[:,1], color='red', s=100)    # Not printing in same plot. To be fixed.
+    ax = plt.subplot(111)
+    vor = Voronoi(kCentroids)
+    voronoi_plot_2d(vor, ax = ax)
+    # plt.xlim(0,9)
+    # plt.ylim(0,9)
+    plt.show()
+
+
+    plt.show()
+
+if __name__ == "__main__":
+    main()

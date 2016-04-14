@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import Classifier
+import os
 from skimage import io
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,7 +12,7 @@ def showGraph(data):
     plot = plt.figure()
     plot = plot.add_subplot( 111 )
     plot.axis('off')
-    plot.imshow( np.array(data,dtype=int), cmap='gray' )
+    plot.imshow(np.array(data,dtype=int), cmap='gray')
 
 def fourierTransform(data):
     f = np.fft.fft2(data)                           # Fourier transform
@@ -28,7 +28,7 @@ def magnitudeSpectrum(fourierData):
     return 20*np.log(np.abs(fourierData))          # Magnitude spectrum
 
 def phaseSpectrum(fourierData):
-    return np.angle(fourierData)                   # Phase spectrum
+    return np.unwrap(np.angle(fourierData))                # Phase spectrum
 
 # High Pass Filter (HPF) - remove the low frequencies by masking with a rectangular window of size min(rows,cols)/6
 def masking(data):
@@ -59,13 +59,30 @@ def convolutionCombination(image):
     imv, imh = commonSize(convolutionFilter(image,'h'),convolutionFilter(image,'v'))
     return np.sqrt(np.power(imv, 2)+np.power(imh, 2))
 
+def getAllImages(letter):
+    images = []
+    dir = 'characters/'
+    for subdir, dirs, files in os.walk(dir):
+        for file in files:
+            if os.path.isfile(os.path.join(dir,file)) and letter in file:
+                    images.append(np.array(io.imread(dir + file), dtype=float))
+    return images
+
+def getAllMagSpec(images):
+    result = []
+    for i in images:
+        result.append(magnitudeSpectrum(convolutionCombination(fourierTransform(i))))
+    return result
+
 
 
 def main():
     # Read image
-    image = np.array(io.imread('characters/V5.GIF'), dtype=float)
-    image = convolutionCombination(image)
 
+
+    imageRGB = io.imread('characters/V5.GIF')
+    image = np.array(imageRGB, dtype=float)
+    image = convolutionCombination(image)
     # Manipulations
     fourier = fourierTransform(image)
 
@@ -73,12 +90,16 @@ def main():
     phaseSpec = phaseSpectrum(fourier)
 
 
+
+
     inverseFourier = inverseFourierTransform(fourier)
+
+    # images = readInImages('T')
 
 
     showGraph(magSpec)
-    showGraph(phaseSpec)
-    showGraph(inverseFourier)
+    # showGraph(phaseSpec)
+    # showGraph(inverseFourier)
     plt.show()
 
 
